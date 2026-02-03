@@ -82,8 +82,8 @@ export default function Login() {
           </div>
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">Tesouraria da Igreja</CardTitle>
-            <CardDescription>Sistema de gestão financeira</CardDescription>
+            <CardTitle className="text-2xl ">Assembleia  de Deus Tempo do Avivamento</CardTitle>
+            <CardDescription>Sistema de gestão administrativa</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -191,7 +191,7 @@ export default function Login() {
           </Tabs>
         </CardContent>
         <CardFooter className="text-center text-sm text-muted-foreground">
-          <p className="w-full">O primeiro usuário a se registrar será o administrador.</p>
+          <p className="w-full">Fazei tudo para glória de Deus</p>
         </CardFooter>
       </Card>
     </div>

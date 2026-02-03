@@ -20,6 +20,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -35,28 +42,30 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Plus, Pencil, Trash2, Users, Loader2, MapPin } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, Loader2, MapPin, Instagram, Upload, Download, FileSpreadsheet } from 'lucide-react';
 
 export default function Membros() {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useState<HTMLInputElement | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     email: '',
+    address: '',
+    church_role: '',
+    social_media: '',
     birth_date: '',
     baptism_date: '',
-    church_role: '',
+    civil_status: '',
     is_ministry: false,
-    address: '',
     notes: '',
   });
 
@@ -136,11 +145,13 @@ export default function Membros() {
       name: '',
       phone: '',
       email: '',
+      address: '',
+      church_role: '',
+      social_media: '',
       birth_date: '',
       baptism_date: '',
-      church_role: '',
+      civil_status: '',
       is_ministry: false,
-      address: '',
       notes: '',
     });
     setIsDialogOpen(true);
@@ -152,11 +163,13 @@ export default function Membros() {
       name: member.name,
       phone: member.phone || '',
       email: member.email || '',
+      address: member.address || '',
+      church_role: member.church_role || '',
+      social_media: member.social_media || '',
       birth_date: member.birth_date || '',
       baptism_date: member.baptism_date || '',
-      church_role: member.church_role || '',
+      civil_status: member.civil_status || '',
       is_ministry: member.is_ministry || false,
-      address: member.address || '',
       notes: member.notes || '',
     });
     setIsDialogOpen(true);
@@ -173,11 +186,13 @@ export default function Membros() {
       name: formData.name,
       phone: formData.phone || null,
       email: formData.email || null,
+      address: formData.address || null,
+      church_role: formData.church_role || null,
+      social_media: formData.social_media || null,
       birth_date: formData.birth_date || null,
       baptism_date: formData.baptism_date || null,
-      church_role: formData.church_role || null,
+      civil_status: formData.civil_status || null,
       is_ministry: formData.is_ministry,
-      address: formData.address || null,
       notes: formData.notes || null,
     });
   }
@@ -210,16 +225,13 @@ export default function Membros() {
 
     setIsImporting(true);
 
-    // Convert date from DD/MM/YYYY to YYYY-MM-DD
     function convertDate(dateStr: string): string | null {
       if (!dateStr || dateStr.trim() === '') return null;
       
-      // If already in YYYY-MM-DD format
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return dateStr;
       }
       
-      // If in DD/MM/YYYY format
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
         const [day, month, year] = dateStr.split('/');
         return `${year}-${month}-${day}`;
@@ -230,8 +242,6 @@ export default function Membros() {
 
     try {
       const text = await file.text();
-      console.log('File content:', text); // Debug
-      
       const lines = text.split(/\r?\n/).filter(line => line.trim());
       
       if (lines.length === 0) {
@@ -240,17 +250,11 @@ export default function Membros() {
         return;
       }
 
-      console.log('Total lines:', lines.length); // Debug
-
-      // Skip header row
       const dataLines = lines.slice(1);
       const membersToImport = [];
 
       for (const line of dataLines) {
-        // Split by semicolon (Excel format)
-        const values = line.split(';').map(v => v.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
-        
-        console.log('Processing line:', values); // Debug
+        const values = line.split(/[,;]/).map(v => v.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
         
         if (values.length < 1 || !values[0]) continue;
 
@@ -258,12 +262,13 @@ export default function Membros() {
           name: values[0] || null,
           phone: values[1] || null,
           email: values[2] || null,
-          birth_date: convertDate(values[3]),
-          baptism_date: convertDate(values[4]),
-          church_role: values[5] || null,
-          is_ministry: values[6]?.toLowerCase() === 'sim' || values[6]?.toLowerCase() === 'true',
-          address: values[7] || null,
-          notes: values[8] || null,
+          address: values[3] || null,
+          church_role: values[4] || null,
+          social_media: values[5] || null,
+          birth_date: convertDate(values[6]),
+          baptism_date: convertDate(values[7]),
+          civil_status: values[8] || null,
+          is_ministry: values[9]?.toLowerCase() === 'sim' || values[9]?.toLowerCase() === 'true',
         };
 
         if (member.name) {
@@ -271,29 +276,21 @@ export default function Membros() {
         }
       }
 
-      console.log('Members to import:', membersToImport); // Debug
-
       if (membersToImport.length === 0) {
         toast.error('Nenhum dado válido encontrado no arquivo');
         setIsImporting(false);
         return;
       }
 
-      // Insert all members
-      const { data, error } = await supabase.from('members').insert(membersToImport);
+      const { error } = await supabase.from('members').insert(membersToImport);
 
-      if (error) {
-        console.error('Supabase error:', error); // Debug
-        throw error;
-      }
-
-      console.log('Import successful:', data); // Debug
+      if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ['all-members'] });
       queryClient.invalidateQueries({ queryKey: ['members'] });
       toast.success(`${membersToImport.length} membros importados com sucesso!`);
       
-      // Reset file input
+      setIsImportDialogOpen(false);
       if (event.target) event.target.value = '';
     } catch (error: any) {
       console.error('Import error:', error);
@@ -309,33 +306,33 @@ export default function Membros() {
       'Nome',
       'Telefone',
       'Email',
-      'Data Nascimento (DD/MM/AAAA ou AAAA-MM-DD)',
-      'Data Batismo (DD/MM/AAAA ou AAAA-MM-DD)',
-      'Funcao',
-      'Ministerio (sim/nao)',
       'Endereco',
-      'Observacoes'
+      'Funcao',
+      'Rede Social',
+      'Data Nascimento',
+      'Data Batismo',
+      'Estado Civil',
+      'Ministerio'
     ];
     
     const exampleRow = [
       'Joao Silva',
       '(11) 99999-9999',
       'joao@email.com',
+      'Rua Exemplo 123',
+      'Diacono',
+      '@joaosilva',
       '15/05/1990',
       '25/12/2010',
-      'Diacono',
-      'sim',
-      'Rua Exemplo 123 Centro Sao Paulo',
-      'Membro ativo desde 2010'
+      'Casado',
+      'sim'
     ];
 
-    // Use semicolon for better Excel compatibility
     const csvContent = [
-      headers.join(';'),
-      exampleRow.join(';')
+      headers.join(','),
+      exampleRow.join(',')
     ].join('\r\n');
 
-    // Add BOM for Excel UTF-8 recognition
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -359,13 +356,229 @@ export default function Membros() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={downloadTemplate}>
-              Baixar Modelo
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Importar
             </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openNewDialog}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo Membro
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingMember ? 'Editar Membro' : 'Novo Membro'}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingMember
+                      ? 'Atualize os dados do membro'
+                      : 'Cadastre um novo membro'}
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Nome *</Label>
+                    <Input
+                      placeholder="Nome completo"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Telefone</Label>
+                      <Input
+                        placeholder="(00) 00000-0000"
+                        value={formData.phone}
+                        onChange={(e) =>
+                          setFormData({ ...formData, phone: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>E-mail</Label>
+                      <Input
+                        type="email"
+                        placeholder="email@exemplo.com"
+                        value={formData.email}
+                        onChange={(e) =>
+                          setFormData({ ...formData, email: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Endereço</Label>
+                    <Input
+                      placeholder="Rua, número, bairro, cidade"
+                      value={formData.address}
+                      onChange={(e) =>
+                        setFormData({ ...formData, address: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Função na Igreja</Label>
+                      <Input
+                        placeholder="Ex: Diácono, Líder de Louvor"
+                        value={formData.church_role}
+                        onChange={(e) =>
+                          setFormData({ ...formData, church_role: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Rede Social</Label>
+                      <Input
+                        placeholder="@usuario"
+                        value={formData.social_media}
+                        onChange={(e) =>
+                          setFormData({ ...formData, social_media: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Data de Nascimento</Label>
+                      <Input
+                        type="date"
+                        value={formData.birth_date}
+                        onChange={(e) =>
+                          setFormData({ ...formData, birth_date: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data de Batismo</Label>
+                      <Input
+                        type="date"
+                        value={formData.baptism_date}
+                        onChange={(e) =>
+                          setFormData({ ...formData, baptism_date: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Estado Civil</Label>
+                      <Select
+                        value={formData.civil_status}
+                        onValueChange={(v) =>
+                          setFormData({ ...formData, civil_status: v })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Solteiro">Solteiro(a)</SelectItem>
+                          <SelectItem value="Casado">Casado(a)</SelectItem>
+                          <SelectItem value="Divorciado">Divorciado(a)</SelectItem>
+                          <SelectItem value="Viúvo">Viúvo(a)</SelectItem>
+                          <SelectItem value="União Estável">União Estável</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 flex items-end">
+                      <div className="flex items-center space-x-2 pb-2">
+                        <Checkbox
+                          id="is_ministry"
+                          checked={formData.is_ministry}
+                          onCheckedChange={(checked) =>
+                            setFormData({ ...formData, is_ministry: checked as boolean })
+                          }
+                        />
+                        <Label
+                          htmlFor="is_ministry"
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          Participa do Ministério
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Observações</Label>
+                    <Textarea
+                      placeholder="Anotações sobre o membro"
+                      value={formData.notes}
+                      onChange={(e) =>
+                        setFormData({ ...formData, notes: e.target.value })
+                      }
+                      rows={3}
+                    />
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={closeDialog}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={saveMutation.isPending}>
+                      {saveMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        'Salvar'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+      </div>
+
+      {/* Import Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Importar Membros</DialogTitle>
+            <DialogDescription>
+              Importe membros de uma planilha CSV ou Excel (.csv)
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col items-center justify-center py-8 space-y-4">
+            <FileSpreadsheet className="h-16 w-16 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground text-center">
+              Selecione um arquivo .csv com os dados dos membros
+            </p>
+            
+            <input
+              id="file-import-input"
+              type="file"
+              accept=".csv,.txt"
+              onChange={handleFileImport}
+              className="hidden"
+            />
+            
             <Button
               variant="outline"
-              onClick={() => document.getElementById('file-import')?.click()}
+              onClick={() => document.getElementById('file-import-input')?.click()}
               disabled={isImporting}
+              className="w-full"
             >
               {isImporting ? (
                 <>
@@ -373,167 +586,32 @@ export default function Membros() {
                   Importando...
                 </>
               ) : (
-                'Importar CSV'
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Escolher arquivo
+                </>
               )}
             </Button>
-            <input
-              id="file-import"
-              type="file"
-              accept=".csv,.txt"
-              onChange={handleFileImport}
-              className="hidden"
-            />
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openNewDialog}>
-                <Plus className="mr-2 h-4 w-4" />
-                Novo Membro
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingMember ? 'Editar Membro' : 'Novo Membro'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingMember
-                    ? 'Atualize os dados do membro'
-                    : 'Cadastre um novo membro'}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome *</Label>
-                  <Input
-                    placeholder="Nome completo"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    required
-                  />
-                </div>
 
-                <div className="space-y-2">
-                  <Label>Data de Nascimento</Label>
-                  <Input
-                    type="date"
-                    value={formData.birth_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, birth_date: e.target.value })
-                    }
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Telefone</Label>
-                    <Input
-                      placeholder="(00) 00000-0000"
-                      value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>E-mail</Label>
-                    <Input
-                      type="email"
-                      placeholder="email@exemplo.com"
-                      value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
+            <div className="w-full">
+              <p className="text-xs text-muted-foreground mb-2">Colunas esperadas:</p>
+              <p className="text-xs text-muted-foreground">
+                Nome, Telefone, Email, Endereço, Função, Rede Social, Data Nascimento, 
+                Data Batismo, Estado Civil, Ministério
+              </p>
+            </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Data de Batismo</Label>
-                    <Input
-                      type="date"
-                      value={formData.baptism_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, baptism_date: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Função na Igreja</Label>
-                    <Input
-                      placeholder="Ex: Diácono, Pastor, Líder..."
-                      value={formData.church_role}
-                      onChange={(e) =>
-                        setFormData({ ...formData, church_role: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Endereço</Label>
-                  <Input
-                    placeholder="Rua, número, bairro, cidade"
-                    value={formData.address}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="is_ministry"
-                    checked={formData.is_ministry}
-                    onCheckedChange={(checked) =>
-                      setFormData({ ...formData, is_ministry: checked as boolean })
-                    }
-                  />
-                  <Label
-                    htmlFor="is_ministry"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Faz parte do ministério
-                  </Label>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Observações</Label>
-                  <Textarea
-                    placeholder="Anotações sobre o membro"
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                  />
-                </div>
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={closeDialog}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={saveMutation.isPending}>
-                    {saveMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      'Salvar'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+            <Button
+              variant="ghost"
+              onClick={downloadTemplate}
+              className="w-full"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Baixar Modelo
+            </Button>
           </div>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -564,7 +642,7 @@ export default function Membros() {
         <Card>
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Ministério</span>
+              <span className="text-sm text-muted-foreground">No Ministério</span>
               <Badge className="bg-purple-600 hover:bg-purple-700">{ministryCount}</Badge>
             </div>
           </CardContent>
@@ -604,14 +682,11 @@ export default function Membros() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
-                    <TableHead>Idade</TableHead>
                     <TableHead>Telefone</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead>Batismo</TableHead>
+                    <TableHead>Estado Civil</TableHead>
                     <TableHead>Ministério</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Cadastro</TableHead>
-                    {isAdmin && <TableHead className="w-24">Ações</TableHead>}
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -619,81 +694,76 @@ export default function Membros() {
                     {filteredMembers?.map((member: any) => (
                       <TableRow key={member.id}>
                         <TableCell className="font-medium">
-                          {member.address ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-1 cursor-help">
-                                  <MapPin className="h-3 w-3 text-muted-foreground" />
-                                  <span>{member.name}</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-xs">{member.address}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            member.name
-                          )}
-                        </TableCell>
-                      <TableCell>
-                        {member.birth_date
-                          ? `${calculateAge(member.birth_date)} anos`
-                          : '-'}
-                      </TableCell>
-                      <TableCell>{member.phone || '-'}</TableCell>
-                      <TableCell>{member.church_role || '-'}</TableCell>
-                      <TableCell>
-                        {member.baptism_date
-                          ? format(new Date(member.baptism_date), 'dd/MM/yyyy')
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {member.is_ministry && (
-                          <Badge className="bg-purple-600 hover:bg-purple-700">
-                            Sim
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={member.is_active ? 'default' : 'secondary'}
-                          className="cursor-pointer"
-                          onClick={() =>
-                            isAdmin &&
-                            toggleActiveMutation.mutate({
-                              id: member.id,
-                              is_active: !member.is_active,
-                            })
-                          }
-                        >
-                          {member.is_active ? 'Ativo' : 'Inativo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(member.created_at), 'dd/MM/yyyy')}
-                      </TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(member)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteMutation.mutate(member.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                          <div className="flex items-center gap-1">
+                            {member.address && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <MapPin className="h-3 w-3 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">{member.address}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            {member.social_media && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Instagram className="h-3 w-3 text-pink-600 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">{member.social_media}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            <span>{member.name}</span>
                           </div>
                         </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
+                        <TableCell>{member.phone || '-'}</TableCell>
+                        <TableCell>{member.civil_status || '-'}</TableCell>
+                        <TableCell>
+                          {member.is_ministry ? (
+                            <Badge className="bg-purple-600 hover:bg-purple-700">Sim</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">Não</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={member.is_active ? 'default' : 'secondary'}
+                            className="cursor-pointer"
+                            onClick={() =>
+                              isAdmin &&
+                              toggleActiveMutation.mutate({
+                                id: member.id,
+                                is_active: !member.is_active,
+                              })
+                            }
+                          >
+                            {member.is_active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditDialog(member)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteMutation.mutate(member.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
                   </TooltipProvider>
                 </TableBody>
               </Table>

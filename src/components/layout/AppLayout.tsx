@@ -25,10 +25,12 @@ import {
   LogOut,
   Menu,
   Shield,
+  Calendar,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Calendário', href: '/calendario', icon: Calendar},
   { name: 'Entradas', href: '/entradas', icon: ArrowDownCircle },
   { name: 'Saídas', href: '/saidas', icon: ArrowUpCircle },
   { name: 'Ação Social', href: '/acaosocial', icon: HeartHandshake },
@@ -95,7 +97,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="p-3 rounded-lg">
             <img src="/ADTA.svg" alt="Logo da Igreja" className="h-10 w-10" />
           </div>
-            <span className="font-bold text-lg">Tesouraria</span>
+            <span className="font-bold text-lg">ADTA</span>
           </div>
 
           {/* Navigation */}
@@ -141,7 +143,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <img src="/ADTA.svg" alt="Logo da Igreja" className="h-10 w-10" />
                 </div>
                 </div>
-                <span className="font-bold text-lg">Tesouraria</span>
+                <span className="font-bold text-lg">ADTA</span>
               </div>
               <nav className="flex-1 space-y-1 p-4">
                 <NavLinks onClick={() => setMobileMenuOpen(false)} />
@@ -152,7 +154,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="p-3 rounded-lg">
             <img src="/ADTA.svg" alt="Logo da Igreja" className="h-10 w-10" />
           </div>
-            <span className="font-bold">Tesouraria</span>
+            <span className="font-bold">ADTA</span>
           </div>
         </div>
 

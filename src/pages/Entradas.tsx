@@ -288,7 +288,7 @@ export default function Entradas() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Nome da Campanha</Label>
+                  <Label>Evento</Label>
                   <Input
                     placeholder="Ex: Campanha de Natal"
                     value={formData.campaign_name}

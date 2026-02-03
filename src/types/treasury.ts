@@ -1,4 +1,4 @@
-// Tipos para o sistema de tesouraria
+// Tipos para o sistema de administrativo
 
 export type AppRole = 'admin' | 'viewer';
 export type CategoryType = 'income' | 'expense';

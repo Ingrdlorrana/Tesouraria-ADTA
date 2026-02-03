@@ -45,7 +45,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          {churchSettings?.name || 'Tesouraria da Igreja'} - {monthName}
+          {churchSettings?.name || 'Administração da Igreja'} - {monthName}
         </p>
       </div>
 

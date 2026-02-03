@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Calendario from "./pages/Calendario";
 import Entradas from "./pages/Entradas";
 import Saidas from "./pages/Saidas";
 import AcaoSocial from "./pages/AcaoSocial";
@@ -33,6 +34,16 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <Dashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/calendario"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Calendario />
                   </AppLayout>
                 </ProtectedRoute>
               }

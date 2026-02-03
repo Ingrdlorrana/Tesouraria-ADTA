@@ -1,7 +1,7 @@
 
-# Sistema de Tesouraria para Igreja
+# Sistema de administrativo para Igreja
 
-Sistema completo de gestão financeira para igreja com armazenamento no MongoDB Atlas (gratuito), acesso para pequena equipe de tesouraria.
+Sistema completo de gestão financeira para igreja com armazenamento no supabase.
 
 ---
 
