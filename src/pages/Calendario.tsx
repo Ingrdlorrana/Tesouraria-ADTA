@@ -64,18 +64,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ─── Constantes ──────────────────────────────────────────────────────────────
-const DEPARTMENTS = [
-  { value: 'ministerio-elohim',  label: 'Ministério Elohim',  color: 'bg-blue-500' },
-  { value: 'ministerio-hebrom',  label: 'Ministério Hebrom',  color: 'bg-purple-500' },
-  { value: 'grupo-mulheres',     label: 'Grupo de Mulheres',  color: 'bg-pink-500' },
-  { value: 'grupo-homens',       label: 'Grupo dos Homens',   color: 'bg-indigo-500' },
-  { value: 'sementinhas',        label: 'Sementinhas',        color: 'bg-yellow-500' },
-  { value: 'voluntarios',        label: 'Voluntários',        color: 'bg-green-500' },
-  { value: 'culto',              label: 'Culto',              color: 'bg-red-500' },
-  { value: 'geral',              label: 'Evento Geral',       color: 'bg-gray-500' },
-];
-
+// ─── Constantes Fixas ────────────────────────────────────────────────────────
 const BIRTHDAY_TAG = { value: '__birthday__', label: 'Aniversários', color: 'bg-pink-400' };
 
 const DAYS_OF_WEEK = [
@@ -116,9 +105,23 @@ export default function Calendario() {
     recurrence_year:  null as number | null,
   });
 
-  // ── Queries ──────────────────────────────────────────────────────────────
+  // ── Query de Departamentos (Dinâmica) ──────────────────────────────────────
+  const { data: departments } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('departments')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // ── Queries de Eventos ─────────────────────────────────────────────────────
   const startDate = startOfMonth(currentMonth);
   const endDate   = endOfMonth(currentMonth);
+  const today     = new Date();
 
   const { data: events, isLoading: loadingEvents } = useQuery({
     queryKey: ['calendar-events', format(currentMonth, 'yyyy-MM')],
@@ -278,7 +281,6 @@ export default function Calendario() {
     });
   }
 
-  /** Todos os eventos (diretos + recorrentes) sem filtro */
   function getAllEventsForDateRaw(date: Date) {
     const direct    = getEventsForDate(date);
     const directIds = new Set(direct.map((e: any) => e.id));
@@ -286,7 +288,6 @@ export default function Calendario() {
     return [...direct, ...recurring];
   }
 
-  /** Aplica o filtro ativo sobre eventos e aniversários */
   function getItemsForDate(date: Date) {
     let dayEvents  = getAllEventsForDateRaw(date);
     let dayBdays   = getBirthdaysForDate(date);
@@ -299,236 +300,199 @@ export default function Calendario() {
         dayEvents = dayEvents.filter((e: any) => e.department === activeFilter);
       }
     }
-
-    return { events: dayEvents, birthdays: dayBdays, hasItems: dayEvents.length > 0 || dayBdays.length > 0 };
+    return { dayEvents, dayBdays };
   }
 
-  // ── Tags do filtro ───────────────────────────────────────────────────────
-  const filterTags = useMemo(() => {
-    const depts = new Set<string>();
-    (events || []).forEach((e: any) => { if (e.department) depts.add(e.department); });
-    (recurringEvents || []).forEach((e: any) => { if (e.department) depts.add(e.department); });
+  const allMonthEvents = useMemo(() => {
+    if (!events || !recurringEvents) return [];
+    const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate });
+    const all: any[] = [];
+    daysInMonth.forEach(d => {
+      const { dayEvents } = getItemsForDate(d);
+      dayEvents.forEach(e => {
+        const alreadyIn = all.find(x => x.id === e.id && isSameDay(parseISO(x.date), d));
+        if (!alreadyIn) all.push({ ...e, date: format(d, 'yyyy-MM-dd') });
+      });
+    });
+    return all.sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
+  }, [events, recurringEvents, startDate, endDate, activeFilter]);
 
-    const tags: { value: string; label: string; color: string }[] =
-      DEPARTMENTS.filter(d => depts.has(d.value));
+  const allMonthBirthdays = useMemo(() => {
+    if (!birthdays) return [];
+    const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate });
+    const all: any[] = [];
+    daysInMonth.forEach(d => {
+      const bdays = getBirthdaysForDate(d);
+      bdays.forEach(b => all.push({ ...b, currentDay: d }));
+    });
+    return all;
+  }, [birthdays, startDate, endDate]);
 
-    if ((birthdays || []).length > 0) tags.push(BIRTHDAY_TAG);
-
-    return tags;
-  }, [events, recurringEvents, birthdays]);
-
-  // ── Grid mensal ──────────────────────────────────────────────────────────
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd   = endOfMonth(currentMonth);
-  const monthDays  = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  const today      = new Date();
-
-  const startDow = getDay(monthStart);
-  const prevDays: Date[] = [];
-  for (let i = startDow - 1; i >= 0; i--) {
-    const d = new Date(monthStart);
-    d.setDate(d.getDate() - (i + 1));
-    prevDays.push(d);
-  }
-  const endDow = getDay(monthEnd);
-  const nextDays: Date[] = [];
-  for (let i = 1; i <= (6 - endDow); i++) {
-    const d = new Date(monthEnd);
-    d.setDate(d.getDate() + i);
-    nextDays.push(d);
-  }
-  const calendarGrid = [...prevDays, ...monthDays, ...nextDays];
-
-  // ── Lista mensal ─────────────────────────────────────────────────────────
-  const allMonthEvents    = events || [];
-  const allMonthBirthdays = (birthdays || []).filter((b: any) =>
-    format(parseISO(b.birth_date), 'MM') === format(currentMonth, 'MM')
-  );
-
-  const isLoading = loadingEvents || loadingBirthdays || loadingRecurring;
-
-  // ── Cor do círculo no ano view (primeiro evento ou aniversário) ──────────
-  function getCircleBgForDate(date: Date): string | null {
-    const { events: ev, birthdays: bd } = getItemsForDate(date);
-    if (ev.length > 0) {
-      const dept = DEPARTMENTS.find(d => d.value === ev[0].department);
+  function getCircleBgForDate(date: Date) {
+    const { dayEvents, dayBdays } = getItemsForDate(date);
+    if (dayBdays.length > 0) return BIRTHDAY_TAG.color;
+    if (dayEvents.length > 0) {
+      const deptId = dayEvents[0].department;
+      const dept = departments?.find(d => d.id === deptId || d.name === deptId);
       return dept?.color || 'bg-gray-500';
     }
-    if (bd.length > 0) return 'bg-pink-400';
     return null;
   }
 
-  // ── RENDER ───────────────────────────────────────────────────────────────
+  const days = useMemo(() => {
+    const startDow = getDay(startDate);
+    const prevDays: Date[] = [];
+    for (let i = startDow - 1; i >= 0; i--) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() - (i + 1));
+      prevDays.push(d);
+    }
+    const currentDays = eachDayOfInterval({ start: startDate, end: endDate });
+    const nextDays: Date[] = [];
+    const totalGrid = 42;
+    const remaining = totalGrid - (prevDays.length + currentDays.length);
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(endDate);
+      d.setDate(d.getDate() + i);
+      nextDays.push(d);
+    }
+    return [...prevDays, ...currentDays, ...nextDays];
+  }, [startDate, endDate]);
+
   return (
-    <div className="space-y-6">
-      {/* ─── Header ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <CalendarIcon className="h-8 w-8 text-primary" />
-            Calendário
-          </h1>
-          <p className="text-muted-foreground">Eventos, aniversários e agendamentos</p>
+    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 p-2 rounded-lg">
+            <CalendarIcon className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Calendário</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">Eventos e aniversariantes</p>
+          </div>
         </div>
-        {isAdmin && (
-          <Button onClick={() => openNewDialog()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Evento
-          </Button>
-        )}
-      </div>
 
-      {/* ─── Controles ─── */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        {viewMode !== 'year' ? (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={previousMonth}>
-              <ChevronLeft className="h-4 w-4" />
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)} className="hidden md:block">
+            <TabsList>
+              <TabsTrigger value="calendar" className="gap-2"><CalendarIcon className="h-4 w-4" /> Grade</TabsTrigger>
+              <TabsTrigger value="list" className="gap-2"><List className="h-4 w-4" /> Lista</TabsTrigger>
+              <TabsTrigger value="year" className="gap-2"><Church className="h-4 w-4" /> Ano</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {isAdmin && (
+            <Button onClick={() => openNewDialog()} className="gap-2 shadow-sm">
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Novo Evento</span>
             </Button>
-            <div className="min-w-[200px] text-center">
-              <h2 className="text-xl font-semibold capitalize">
-                {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
-              </h2>
-            </div>
-            <Button variant="outline" size="icon" onClick={nextMonth}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" onClick={goToToday}>Hoje</Button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setCurrentMonth(setYear(currentMonth, getYear(currentMonth) - 1))}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="min-w-[80px] text-center">
-              <h2 className="text-xl font-semibold">{getYear(currentMonth)}</h2>
-            </div>
-            <Button variant="outline" size="icon" onClick={() => setCurrentMonth(setYear(currentMonth, getYear(currentMonth) + 1))}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" onClick={goToToday}>Hoje</Button>
-          </div>
-        )}
-
-        <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
-          <TabsList>
-            <TabsTrigger value="calendar">
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              Mês
-            </TabsTrigger>
-            <TabsTrigger value="year">
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              Ano
-            </TabsTrigger>
-            <TabsTrigger value="list">
-              <List className="h-4 w-4 mr-2" />
-              Lista
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* ─── Barra de filtro ─── (aparece em Mês e Ano) */}
-      {(viewMode === 'calendar' || viewMode === 'year') && filterTags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {activeFilter && (
-            <button
-              onClick={() => setActiveFilter(null)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium bg-muted hover:bg-muted/80 transition-colors"
-            >
-              <X className="h-3 w-3" />
-              Todos
-            </button>
           )}
-
-          {filterTags.map(tag => {
-            const isActive = activeFilter === tag.value;
-            return (
-              <button
-                key={tag.value}
-                onClick={() => setActiveFilter(isActive ? null : tag.value)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-medium transition-all',
-                  isActive
-                    ? `${tag.color} text-white border-transparent shadow-sm`
-                    : 'bg-background hover:bg-muted border-muted',
-                )}
-              >
-                <span className={cn('w-2.5 h-2.5 rounded-full', isActive ? 'bg-white/40' : tag.color)} />
-                {tag.label}
-              </button>
-            );
-          })}
         </div>
-      )}
+      </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-           CALENDAR VIEW — MÊS
-          ═══════════════════════════════════════════════════════════════════════ */}
+      {/* CONTROLS */}
+      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-card p-3 sm:p-4 rounded-xl border shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto justify-between lg:justify-start">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button variant="outline" size="icon" onClick={previousMonth} className="h-8 w-8 sm:h-10 sm:w-10"><ChevronLeft className="h-4 w-4" /></Button>
+            <Button variant="outline" className="h-8 sm:h-10 px-2 sm:px-4 text-sm sm:text-base font-semibold min-w-[120px] sm:min-w-[160px] capitalize" onClick={() => setViewMode('year')}>
+              {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+            </Button>
+            <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8 sm:h-10 sm:w-10"><ChevronRight className="h-4 w-4" /></Button>
+          </div>
+          <Button variant="ghost" size="sm" onClick={goToToday} className="text-primary hover:text-primary hover:bg-primary/10 gap-1 sm:gap-2">
+            <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" /> Hoje
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 w-full lg:w-auto">
+          <Button variant={activeFilter === null ? 'secondary' : 'ghost'} size="sm" onClick={() => setActiveFilter(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">Todos</Button>
+          {departments?.map(dept => (
+            <Button
+              key={dept.id}
+              variant={activeFilter === dept.id ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveFilter(dept.id)}
+              className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1.5"
+            >
+              <div className={cn('w-2 h-2 rounded-full', dept.color)} />
+              {dept.name}
+            </Button>
+          ))}
+          <Button
+            variant={activeFilter === BIRTHDAY_TAG.value ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveFilter(BIRTHDAY_TAG.value)}
+            className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1.5"
+          >
+            <div className={cn('w-2 h-2 rounded-full', BIRTHDAY_TAG.color)} />
+            {BIRTHDAY_TAG.label}
+          </Button>
+        </div>
+      </div>
+
+      {/* CALENDAR VIEW */}
       {viewMode === 'calendar' && (
-        <Card>
-          <CardContent className="p-6">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+        <Card className="border-none shadow-none bg-transparent">
+          <CardContent className="p-0">
+            {loadingEvents ? (
+              <div className="grid grid-cols-7 gap-px bg-muted border rounded-xl overflow-hidden">
+                {[...Array(42)].map((_, i) => <Skeleton key={i} className="h-24 sm:h-32 w-full rounded-none" />)}
               </div>
             ) : (
-              <div className="grid grid-cols-7 gap-2">
-                {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(day => (
-                  <div key={day} className="text-center font-semibold text-sm text-muted-foreground py-2">{day}</div>
+              <div className="grid grid-cols-7 gap-px bg-muted border rounded-xl overflow-hidden shadow-sm">
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+                  <div key={d} className="bg-muted/50 p-2 sm:p-3 text-center font-bold text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">{d}</div>
                 ))}
-
-                {calendarGrid.map((day, idx) => {
-                  const { events: dayEvents, birthdays: dayBdays, hasItems } = getItemsForDate(day);
-                  const isToday        = isSameDay(day, today);
-                  const isCurrentMonth = isSameMonth(day, currentMonth);
+                {days.map((day, i) => {
+                  const { dayEvents, dayBdays } = getItemsForDate(day);
+                  const isToday = isSameDay(day, today);
+                  const isSelectedMonth = isSameMonth(day, currentMonth);
 
                   return (
                     <div
-                      key={idx}
+                      key={i}
                       className={cn(
-                        'min-h-[120px] border rounded-lg p-2 transition-colors',
-                        isCurrentMonth ? 'bg-background' : 'bg-muted/50',
-                        isToday && 'ring-2 ring-primary',
-                        hasItems && 'cursor-pointer hover:bg-accent',
-                        !isCurrentMonth && 'opacity-50',
+                        'bg-background min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 transition-all hover:bg-accent/30 group relative',
+                        !isSelectedMonth && 'text-muted-foreground/40 bg-muted/5',
+                        isToday && 'bg-primary/5'
                       )}
                       onClick={() => isAdmin && openNewDialog(day)}
                     >
-                      <div className="flex justify-between items-start mb-1">
+                      <div className="flex justify-between items-start mb-1 sm:mb-2">
                         <span className={cn(
-                          'text-sm font-medium',
-                          isToday && 'bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center'
+                          'text-xs sm:text-sm font-semibold h-6 w-6 sm:h-7 sm:w-7 flex items-center justify-center rounded-full transition-colors',
+                          isToday ? 'bg-primary text-primary-foreground shadow-sm' : 'group-hover:bg-muted'
                         )}>
                           {format(day, 'd')}
                         </span>
                       </div>
 
-                      <div className="space-y-1">
-                        {dayBdays.map((b: any) => (
-                          <div key={b.id} className="text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded px-1 py-0.5 truncate flex items-center gap-1">
-                            <Cake className="h-3 w-3" />
+                      <div className="space-y-0.5 sm:space-y-1">
+                        {dayBdays.slice(0, 1).map((b: any) => (
+                          <div key={b.id} className="text-[9px] sm:text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded px-0.5 sm:px-1 py-0.5 truncate flex items-center gap-0.5 sm:gap-1">
+                            <Cake className="h-2 w-2 sm:h-3 sm:w-3" />
                             <span className="truncate">{b.name}</span>
                           </div>
                         ))}
 
-                        {dayEvents.slice(0, 2).map((event: any) => {
-                          const dept = DEPARTMENTS.find(d => d.value === event.department);
+                        {dayEvents.slice(0, 1).map((event: any) => {
+                          const deptId = event.department;
+                          const dept = departments?.find(d => d.id === deptId || d.name === deptId);
                           return (
                             <div
                               key={event.id}
-                              className={cn('text-xs rounded px-1 py-0.5 truncate text-white flex items-center gap-1', dept?.color || 'bg-gray-500')}
+                              className={cn('text-[9px] sm:text-xs rounded px-0.5 sm:px-1 py-0.5 truncate text-white flex items-center gap-0.5 sm:gap-1', dept?.color || 'bg-gray-500')}
                               onClick={(e) => { e.stopPropagation(); if (isAdmin) openEditDialog(event); }}
                             >
-                              {event.is_recurring && <RotateCcw className="h-3 w-3 shrink-0 opacity-70" />}
-                              {event.time && <span className="font-semibold">{event.time.slice(0, 5)} </span>}
-                              {event.title}
+                              {event.is_recurring && <RotateCcw className="h-2 w-2 sm:h-3 sm:w-3 shrink-0 opacity-70" />}
+                              {event.time && <span className="font-semibold hidden sm:inline">{event.time.slice(0, 5)} </span>}
+                              <span className="truncate">{event.title}</span>
                             </div>
                           );
                         })}
 
-                        {dayEvents.length > 2 && (
-                          <div className="text-xs text-muted-foreground">+{dayEvents.length - 2} mais</div>
+                        {(dayEvents.length + dayBdays.length) > 2 && (
+                          <div className="text-[8px] sm:text-xs text-muted-foreground">+{dayEvents.length + dayBdays.length - 2}</div>
                         )}
                       </div>
                     </div>
@@ -540,9 +504,7 @@ export default function Calendario() {
         </Card>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-           YEAR VIEW
-          ═══════════════════════════════════════════════════════════════════════ */}
+      {/* YEAR VIEW */}
       {viewMode === 'year' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {MONTHS_PT.map((label, monthIndex) => {
@@ -587,7 +549,6 @@ export default function Calendario() {
                     {miniGrid.map((day, i) => {
                       const isThisMonth = isSameMonth(day, monthDate);
                       const isDayToday  = isSameDay(day, today);
-                      // Fundo colorido: cor do primeiro evento/aniversário nessa data
                       const circleBg    = isThisMonth ? getCircleBgForDate(day) : null;
 
                       return (
@@ -596,12 +557,9 @@ export default function Calendario() {
                           className={cn(
                             'h-5 flex items-center justify-center text-[10px] rounded-full',
                             !isThisMonth && 'opacity-30',
-                            // Fundo colorido quando tem evento
                             circleBg && circleBg,
                             circleBg && 'text-white font-semibold',
-                            // Hoje sem evento: anel
                             isDayToday && !circleBg && 'ring-2 ring-primary text-primary font-bold',
-                            // Hoje COM evento: mantém o bg mas adiciona anel branco
                             isDayToday && circleBg && 'ring-2 ring-white',
                           )}
                         >
@@ -617,9 +575,7 @@ export default function Calendario() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-           LIST VIEW
-          ═══════════════════════════════════════════════════════════════════════ */}
+      {/* LIST VIEW */}
       {viewMode === 'list' && (
         <div className="space-y-4">
           <Card>
@@ -637,12 +593,13 @@ export default function Calendario() {
               ) : (
                 <div className="space-y-2">
                   {allMonthEvents.map((event: any) => {
-                    const dept = DEPARTMENTS.find(d => d.value === event.department);
+                    const deptId = event.department;
+                    const dept = departments?.find(d => d.id === deptId || d.name === deptId);
                     return (
                       <div key={event.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className={cn('text-white', dept?.color || 'bg-gray-500')}>{dept?.label || 'Geral'}</Badge>
+                            <Badge className={cn('text-white', dept?.color || 'bg-gray-500')}>{dept?.name || 'Geral'}</Badge>
                             {event.is_recurring && (
                               <Badge variant="outline" className="text-xs gap-1">
                                 <RotateCcw className="h-3 w-3" />
@@ -687,13 +644,14 @@ export default function Calendario() {
               ) : (
                 <div className="space-y-2">
                   {recurringEvents.map((event: any) => {
-                    const dept    = DEPARTMENTS.find(d => d.value === event.department);
+                    const deptId = event.department;
+                    const dept = departments?.find(d => d.id === deptId || d.name === deptId);
                     const dayName = DAYS_OF_WEEK.find(d => d.value === String(event.recurrence_day))?.label;
                     return (
                       <div key={event.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className={cn('text-white', dept?.color || 'bg-gray-500')}>{dept?.label || 'Geral'}</Badge>
+                            <Badge className={cn('text-white', dept?.color || 'bg-gray-500')}>{dept?.name || 'Geral'}</Badge>
                             <Badge variant="outline" className="text-xs">
                               {dayName} {event.time ? `às ${event.time.slice(0,5)}` : ''}
                             </Badge>
@@ -761,9 +719,7 @@ export default function Calendario() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-           DIALOG
-          ═══════════════════════════════════════════════════════════════════════ */}
+      {/* DIALOG */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="w-full max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -872,11 +828,11 @@ export default function Calendario() {
                   <SelectValue placeholder="Selecione o departamento" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DEPARTMENTS.map(dept => (
-                    <SelectItem key={dept.value} value={dept.value}>
+                  {departments?.map(dept => (
+                    <SelectItem key={dept.id} value={dept.id}>
                       <div className="flex items-center gap-2">
                         <div className={cn('w-3 h-3 rounded-full', dept.color)} />
-                        {dept.label}
+                        {dept.name}
                       </div>
                     </SelectItem>
                   ))}

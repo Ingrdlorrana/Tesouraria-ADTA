@@ -46,8 +46,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Settings, Church, Tags, Users, Loader2, Shield, Plus, Pencil, Trash2, UserPlus } from 'lucide-react';
+import { Settings, Church, Tags, Users, Loader2, Shield, Plus, Pencil, Trash2, UserPlus, Building } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
+import DepartmentManager from '@/components/DepartmentManager';
 
 type Category = Database['public']['Tables']['categories']['Row'];
 type CategoryType = Database['public']['Enums']['category_type'];
@@ -316,8 +317,12 @@ export default function Configuracoes() {
         </p>
       </div>
 
-      <Tabs defaultValue="igreja" className="space-y-4">
+      <Tabs defaultValue="perfil" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="perfil">
+            <Users className="h-4 w-4 mr-2" />
+            Meu Perfil
+          </TabsTrigger>
           <TabsTrigger value="igreja">
             <Church className="h-4 w-4 mr-2" />
             Igreja
@@ -326,11 +331,62 @@ export default function Configuracoes() {
             <Tags className="h-4 w-4 mr-2" />
             Categorias
           </TabsTrigger>
+          <TabsTrigger value="departamentos">
+            <Building className="h-4 w-4 mr-2" />
+            Departamentos
+          </TabsTrigger>
           <TabsTrigger value="usuarios">
-            <Users className="h-4 w-4 mr-2" />
+            <UserPlus className="h-4 w-4 mr-2" />
             Usuários
           </TabsTrigger>
         </TabsList>
+
+        {/* Perfil Tab */}
+        <TabsContent value="perfil">
+          <Card>
+            <CardHeader>
+              <CardTitle>Meu Perfil</CardTitle>
+              <CardDescription>
+                Suas informações de usuário
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-w-md">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-primary">
+                      {profile?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-lg">{profile?.name}</p>
+                    <p className="text-muted-foreground">{profile?.email}</p>
+                    <Badge variant={isAdmin ? 'default' : 'secondary'} className="mt-1">
+                      {isAdmin ? 'Administrador' : 'Visualizador'}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <Label>Nome</Label>
+                    <Input value={profile?.name || ''} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>E-mail</Label>
+                    <Input value={profile?.email || ''} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nível de Acesso</Label>
+                    <Input value={isAdmin ? 'Administrador' : 'Visualizador'} disabled />
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground mt-4">
+                  Para alterar seu nome ou senha, entre em contato com um administrador.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Igreja Tab */}
         <TabsContent value="igreja">
@@ -581,6 +637,11 @@ export default function Configuracoes() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Departamentos Tab */}
+        <TabsContent value="departamentos">
+          <DepartmentManager />
         </TabsContent>
 
         {/* Usuários Tab */}
