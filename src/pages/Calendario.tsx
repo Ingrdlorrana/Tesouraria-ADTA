@@ -40,6 +40,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Tabs,
   TabsList,
   TabsTrigger,
@@ -61,6 +67,7 @@ import {
   RotateCcw,
   Lock,
   X,
+  Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -373,25 +380,34 @@ export default function Calendario() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)} className="hidden md:block">
-            <TabsList>
-              <TabsTrigger value="calendar" className="gap-2"><CalendarIcon className="h-4 w-4" /> Grade</TabsTrigger>
-              <TabsTrigger value="list" className="gap-2"><List className="h-4 w-4" /> Lista</TabsTrigger>
-              <TabsTrigger value="year" className="gap-2"><Church className="h-4 w-4" /> Ano</TabsTrigger>
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)} className="w-auto">
+            <TabsList className="grid grid-cols-3 h-9">
+              <TabsTrigger value="calendar" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4" /> 
+                <span className="hidden sm:inline">Grade</span>
+              </TabsTrigger>
+              <TabsTrigger value="list" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <List className="h-3 w-3 sm:h-4 sm:w-4" /> 
+                <span className="hidden sm:inline">Lista</span>
+              </TabsTrigger>
+              <TabsTrigger value="year" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
+                <Church className="h-3 w-3 sm:h-4 sm:w-4" /> 
+                <span className="hidden sm:inline">Ano</span>
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           {isAdmin && (
-            <Button onClick={() => openNewDialog()} className="gap-2 shadow-sm">
-              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Novo Evento</span>
+            <Button onClick={() => openNewDialog()} className="gap-2 shadow-sm h-9">
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Novo</span>
             </Button>
           )}
         </div>
       </div>
 
       {/* CONTROLS */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-card p-3 sm:p-4 rounded-xl border shadow-sm">
-        <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto justify-between lg:justify-start">
+      <div className="flex flex-col gap-3 sm:gap-4 bg-card p-3 sm:p-4 rounded-xl border shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-4 w-full justify-between">
           <div className="flex items-center gap-1 sm:gap-2">
             <Button variant="outline" size="icon" onClick={previousMonth} className="h-8 w-8 sm:h-10 sm:w-10"><ChevronLeft className="h-4 w-4" /></Button>
             <Button variant="outline" className="h-8 sm:h-10 px-2 sm:px-4 text-sm sm:text-base font-semibold min-w-[120px] sm:min-w-[160px] capitalize" onClick={() => setViewMode('year')}>
@@ -399,34 +415,89 @@ export default function Calendario() {
             </Button>
             <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8 sm:h-10 sm:w-10"><ChevronRight className="h-4 w-4" /></Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={goToToday} className="text-primary hover:text-primary hover:bg-primary/10 gap-1 sm:gap-2">
-            <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" /> Hoje
+          <Button variant="ghost" size="sm" onClick={goToToday} className="text-primary hover:text-primary hover:bg-primary/10 gap-1 sm:gap-2 h-8 sm:h-10">
+            <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" /> <span className="hidden sm:inline">Hoje</span>
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-1.5 sm:gap-2 w-full lg:w-auto">
-          <Button variant={activeFilter === null ? 'secondary' : 'ghost'} size="sm" onClick={() => setActiveFilter(null)} className="h-7 sm:h-8 text-[10px] sm:text-xs">Todos</Button>
-          {departments?.map(dept => (
-            <Button
-              key={dept.id}
-              variant={activeFilter === dept.id ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveFilter(dept.id)}
-              className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1.5"
+        {/* Filtros - Dropdown no mobile, botões no desktop */}
+        <div className="flex items-center gap-2 w-full">
+          {/* Dropdown no Mobile */}
+          <div className="md:hidden w-full">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between h-9">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    <span className="text-sm">
+                      {activeFilter === null 
+                        ? 'Todos os departamentos' 
+                        : activeFilter === BIRTHDAY_TAG.value 
+                        ? BIRTHDAY_TAG.label 
+                        : departments?.find(d => d.id === activeFilter)?.name || 'Filtro'}
+                    </span>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[280px]">
+                <DropdownMenuItem onClick={() => setActiveFilter(null)}>
+                  <div className="flex items-center gap-2 w-full">
+                    {activeFilter === null && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    <span className={activeFilter === null ? 'font-semibold' : ''}>Todos</span>
+                  </div>
+                </DropdownMenuItem>
+                {departments?.map(dept => (
+                  <DropdownMenuItem key={dept.id} onClick={() => setActiveFilter(dept.id)}>
+                    <div className="flex items-center gap-2 w-full">
+                      {activeFilter === dept.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      <div className={cn('w-3 h-3 rounded-full shrink-0', dept.color)} />
+                      <span className={activeFilter === dept.id ? 'font-semibold' : ''}>{dept.name}</span>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuItem onClick={() => setActiveFilter(BIRTHDAY_TAG.value)}>
+                  <div className="flex items-center gap-2 w-full">
+                    {activeFilter === BIRTHDAY_TAG.value && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    <div className={cn('w-3 h-3 rounded-full shrink-0', BIRTHDAY_TAG.color)} />
+                    <span className={activeFilter === BIRTHDAY_TAG.value ? 'font-semibold' : ''}>{BIRTHDAY_TAG.label}</span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Botões no Desktop */}
+          <div className="hidden md:flex flex-wrap gap-2 w-full">
+            <Button 
+              variant={activeFilter === null ? 'secondary' : 'ghost'} 
+              size="sm" 
+              onClick={() => setActiveFilter(null)} 
+              className="h-8 text-xs px-3"
             >
-              <div className={cn('w-2 h-2 rounded-full', dept.color)} />
-              {dept.name}
+              Todos
             </Button>
-          ))}
-          <Button
-            variant={activeFilter === BIRTHDAY_TAG.value ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveFilter(BIRTHDAY_TAG.value)}
-            className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1.5"
-          >
-            <div className={cn('w-2 h-2 rounded-full', BIRTHDAY_TAG.color)} />
-            {BIRTHDAY_TAG.label}
-          </Button>
+            {departments?.map(dept => (
+              <Button
+                key={dept.id}
+                variant={activeFilter === dept.id ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveFilter(dept.id)}
+                className="h-8 text-xs gap-1.5 px-3"
+              >
+                <div className={cn('w-2 h-2 rounded-full shrink-0', dept.color)} />
+                <span className="truncate">{dept.name}</span>
+              </Button>
+            ))}
+            <Button
+              variant={activeFilter === BIRTHDAY_TAG.value ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveFilter(BIRTHDAY_TAG.value)}
+              className="h-8 text-xs gap-1.5 px-3"
+            >
+              <div className={cn('w-2 h-2 rounded-full shrink-0', BIRTHDAY_TAG.color)} />
+              <span className="truncate">{BIRTHDAY_TAG.label}</span>
+            </Button>
+          </div>
         </div>
       </div>
 

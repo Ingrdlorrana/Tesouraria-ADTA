@@ -1,16 +1,20 @@
-import { format } from 'date-fns';
+import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useMonthlyTotals, useCategoryTotals, useRecentEntries } from '@/hooks/useFinancialData';
-import { useChurchSettings } from '@/hooks/useFinancialData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import WelcomeHeader from '@/components/WelcomeHeader';
 import {
   ArrowDownCircle,
   ArrowUpCircle,
   Wallet,
   TrendingUp,
   TrendingDown,
+  Calendar,
+  Cake,
 } from 'lucide-react';
 import {
   PieChart,
@@ -21,7 +25,21 @@ import {
   Tooltip,
 } from 'recharts';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+// Paleta de cores moderna e sofisticada para os gráficos
+const CHART_COLORS = [
+  '#6366F1', // Indigo vibrante
+  '#10B981', // Esmeralda
+  '#F59E0B', // Âmbar
+  '#EC4899', // Rosa pink
+  '#8B5CF6', // Roxo violeta
+  '#14B8A6', // Teal
+  '#F97316', // Laranja
+  '#EF4444', // Vermelho
+  '#06B6D4', // Ciano
+  '#A855F7', // Roxo claro
+  '#84CC16', // Lima
+  '#F43F5E', // Rosa vermelho
+];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -35,19 +53,74 @@ export default function Dashboard() {
   const { data: monthlyTotals, isLoading: loadingTotals } = useMonthlyTotals(currentDate);
   const { data: categoryTotals, isLoading: loadingCategories } = useCategoryTotals(currentDate);
   const { data: recentEntries, isLoading: loadingRecent } = useRecentEntries(8);
-  const { data: churchSettings } = useChurchSettings();
 
-  const monthName = format(currentDate, 'MMMM yyyy', { locale: ptBR });
+  // Buscar próximos eventos
+  const { data: upcomingEvents, isLoading: loadingEvents } = useQuery({
+    queryKey: ['dashboard-upcoming-events'],
+    queryFn: async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 30);
+      const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+      
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .gte('date', today)
+        .lte('date', futureDateStr)
+        .order('date')
+        .order('time')
+        .limit(5);
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar aniversariantes do mês
+  const { data: monthBirthdays, isLoading: loadingBirthdays } = useQuery({
+    queryKey: ['dashboard-month-birthdays'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('members')
+        .select('id, name, birth_date')
+        .not('birth_date', 'is', null)
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      const currentMonth = new Date().getMonth() + 1;
+      const currentMonthBirthdays = data?.filter(member => {
+        const birthDate = parseISO(member.birth_date);
+        return birthDate.getMonth() + 1 === currentMonth;
+      }).sort((a, b) => {
+        const dateA = parseISO(a.birth_date);
+        const dateB = parseISO(b.birth_date);
+        return dateA.getDate() - dateB.getDate();
+      });
+
+      return currentMonthBirthdays || [];
+    },
+  });
+
+  const formatEventDate = (dateStr: string, timeStr?: string) => {
+    const eventDate = parseISO(dateStr);
+    
+    if (isToday(eventDate)) {
+      return timeStr ? `Hoje às ${timeStr.slice(0, 5)}` : 'Hoje';
+    }
+    
+    if (isTomorrow(eventDate)) {
+      return timeStr ? `Amanhã às ${timeStr.slice(0, 5)}` : 'Amanhã';
+    }
+    
+    return format(eventDate, "dd/MM 'às' ", { locale: ptBR }) + (timeStr?.slice(0, 5) || '');
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          {churchSettings?.name || 'Administração da Igreja'} - {monthName}
-        </p>
-      </div>
+      {/* Welcome Header */}
+      <WelcomeHeader />
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -159,7 +232,7 @@ export default function Dashboard() {
                     {categoryTotals?.incomeByCategory.map((_, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
                       />
                     ))}
                   </Pie>
@@ -199,14 +272,14 @@ export default function Dashboard() {
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
-                    label={({ name, percent }) =>
+                    label={({ name, percent}) =>
                       `${name} ${(percent * 100).toFixed(0)}%`
                     }
                   >
                     {categoryTotals?.expensesByCategory.map((_, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
                       />
                     ))}
                   </Pie>
@@ -284,6 +357,89 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Aniversariantes e Próximos Eventos */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Aniversariantes do Mês */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Cake className="h-5 w-5 text-pink-500" />
+              Aniversariantes do Mês
+            </CardTitle>
+            <CardDescription>Comemore com a família da igreja</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingBirthdays ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : monthBirthdays?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum aniversariante este mês
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {monthBirthdays?.map((member: any) => (
+                  <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
+                    <div className="bg-pink-100 dark:bg-pink-900/30 p-2 rounded-full">
+                      <Cake className="h-4 w-4 text-pink-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(member.birth_date), "dd 'de' MMMM", { locale: ptBR })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Próximos Eventos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-500" />
+              Próximos Eventos
+            </CardTitle>
+            <CardDescription>Programação dos próximos dias</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingEvents ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : upcomingEvents?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum evento próximo
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {upcomingEvents?.map((event: any) => (
+                  <div key={event.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
+                    <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-full">
+                      <Calendar className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{event.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatEventDate(event.date, event.time)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
