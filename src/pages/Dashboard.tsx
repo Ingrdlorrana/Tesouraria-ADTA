@@ -15,6 +15,8 @@ import {
   TrendingDown,
   Calendar,
   Cake,
+  Users,
+  Home,
 } from 'lucide-react';
 import {
   PieChart,
@@ -53,6 +55,34 @@ export default function Dashboard() {
   const { data: monthlyTotals, isLoading: loadingTotals } = useMonthlyTotals(currentDate);
   const { data: categoryTotals, isLoading: loadingCategories } = useCategoryTotals(currentDate);
   const { data: recentEntries, isLoading: loadingRecent } = useRecentEntries(8);
+
+  // Buscar membros ativos
+  const { data: activeMembers, isLoading: loadingMembers } = useQuery({
+    queryKey: ['dashboard-active-members'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('members')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  // Buscar famílias assistidas
+  const { data: assistedFamilies, isLoading: loadingFamilies } = useQuery({
+    queryKey: ['dashboard-assisted-families'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('families')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      if (error) throw error;
+      return count || 0;
+    },
+  });
 
   // Buscar próximos eventos
   const { data: upcomingEvents, isLoading: loadingEvents } = useQuery({
@@ -123,7 +153,7 @@ export default function Dashboard() {
       <WelcomeHeader />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
         {/* Total Income */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -190,6 +220,50 @@ export default function Dashboard() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Diferença entre entradas e saídas
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Active Members */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Membros</CardTitle>
+            <Users className="h-5 w-5 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            {loadingMembers ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-blue-600">
+                  {activeMembers}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Membros ativos
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Assisted Families */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Famílias</CardTitle>
+            <Home className="h-5 w-5 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            {loadingFamilies ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-purple-600">
+                  {assistedFamilies}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Famílias assistidas
                 </p>
               </>
             )}

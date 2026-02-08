@@ -9,6 +9,7 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
+  isBefore,
   addMonths,
   subMonths,
   parseISO,
@@ -68,6 +69,7 @@ import {
   Lock,
   X,
   Filter,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -99,6 +101,7 @@ export default function Calendario() {
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'calendar' | 'list' | 'year'>('calendar');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'calendario' | 'servico'>('calendario');
 
   const [formData, setFormData] = useState({
     title:            '',
@@ -259,6 +262,8 @@ export default function Calendario() {
   // ── Navegação ────────────────────────────────────────────────────────────
   const previousMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const nextMonth     = () => setCurrentMonth(addMonths(currentMonth, 1));
+  const previousYear  = () => setCurrentMonth(setYear(currentMonth, getYear(currentMonth) - 1));
+  const nextYear      = () => setCurrentMonth(setYear(currentMonth, getYear(currentMonth) + 1));
   const goToToday     = () => setCurrentMonth(new Date());
 
   // ── Helpers de dados ─────────────────────────────────────────────────────
@@ -367,424 +372,699 @@ export default function Calendario() {
   }, [startDate, endDate]);
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 p-2 rounded-lg">
-            <CalendarIcon className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Calendário</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">Eventos e aniversariantes</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)} className="w-auto">
-            <TabsList className="grid grid-cols-3 h-9">
-              <TabsTrigger value="calendar" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4" /> 
-                <span className="hidden sm:inline">Grade</span>
-              </TabsTrigger>
-              <TabsTrigger value="list" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <List className="h-3 w-3 sm:h-4 sm:w-4" /> 
-                <span className="hidden sm:inline">Lista</span>
-              </TabsTrigger>
-              <TabsTrigger value="year" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3">
-                <Church className="h-3 w-3 sm:h-4 sm:w-4" /> 
-                <span className="hidden sm:inline">Ano</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {isAdmin && (
-            <Button onClick={() => openNewDialog()} className="gap-2 shadow-sm h-9">
-              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Novo</span>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* CONTROLS */}
-      <div className="flex flex-col gap-3 sm:gap-4 bg-card p-3 sm:p-4 rounded-xl border shadow-sm">
-        <div className="flex items-center gap-2 sm:gap-4 w-full justify-between">
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Button variant="outline" size="icon" onClick={previousMonth} className="h-8 w-8 sm:h-10 sm:w-10"><ChevronLeft className="h-4 w-4" /></Button>
-            <Button variant="outline" className="h-8 sm:h-10 px-2 sm:px-4 text-sm sm:text-base font-semibold min-w-[120px] sm:min-w-[160px] capitalize" onClick={() => setViewMode('year')}>
-              {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
-            </Button>
-            <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8 sm:h-10 sm:w-10"><ChevronRight className="h-4 w-4" /></Button>
-          </div>
-          <Button variant="ghost" size="sm" onClick={goToToday} className="text-primary hover:text-primary hover:bg-primary/10 gap-1 sm:gap-2 h-8 sm:h-10">
-            <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" /> <span className="hidden sm:inline">Hoje</span>
+    <div className="space-y-3 animate-in fade-in duration-500">
+      {/* MAIN TABS */}
+      <div className="flex items-center justify-between">
+        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-auto">
+          <TabsList className="h-9">
+            <TabsTrigger value="calendario" className="gap-2 text-sm px-4">
+              <CalendarIcon className="h-4 w-4" /> 
+              Calendário
+            </TabsTrigger>
+            <TabsTrigger value="servico" className="gap-2 text-sm px-4">
+              <ClipboardList className="h-4 w-4" /> 
+              Escala de Serviço
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {isAdmin && (
+          <Button onClick={() => openNewDialog()} className="gap-2 shadow-sm">
+            <Plus className="h-4 w-4" /> 
+            <span>Novo</span>
           </Button>
-        </div>
-
-        {/* Filtros - Dropdown no mobile, botões no desktop */}
-        <div className="flex items-center gap-2 w-full">
-          {/* Dropdown no Mobile */}
-          <div className="md:hidden w-full">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between h-9">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4" />
-                    <span className="text-sm">
-                      {activeFilter === null 
-                        ? 'Todos os departamentos' 
-                        : activeFilter === BIRTHDAY_TAG.value 
-                        ? BIRTHDAY_TAG.label 
-                        : departments?.find(d => d.id === activeFilter)?.name || 'Filtro'}
-                    </span>
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[280px]">
-                <DropdownMenuItem onClick={() => setActiveFilter(null)}>
-                  <div className="flex items-center gap-2 w-full">
-                    {activeFilter === null && <div className="w-2 h-2 rounded-full bg-primary" />}
-                    <span className={activeFilter === null ? 'font-semibold' : ''}>Todos</span>
-                  </div>
-                </DropdownMenuItem>
-                {departments?.map(dept => (
-                  <DropdownMenuItem key={dept.id} onClick={() => setActiveFilter(dept.id)}>
-                    <div className="flex items-center gap-2 w-full">
-                      {activeFilter === dept.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-                      <div className={cn('w-3 h-3 rounded-full shrink-0', dept.color)} />
-                      <span className={activeFilter === dept.id ? 'font-semibold' : ''}>{dept.name}</span>
-                    </div>
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuItem onClick={() => setActiveFilter(BIRTHDAY_TAG.value)}>
-                  <div className="flex items-center gap-2 w-full">
-                    {activeFilter === BIRTHDAY_TAG.value && <div className="w-2 h-2 rounded-full bg-primary" />}
-                    <div className={cn('w-3 h-3 rounded-full shrink-0', BIRTHDAY_TAG.color)} />
-                    <span className={activeFilter === BIRTHDAY_TAG.value ? 'font-semibold' : ''}>{BIRTHDAY_TAG.label}</span>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* Botões no Desktop */}
-          <div className="hidden md:flex flex-wrap gap-2 w-full">
-            <Button 
-              variant={activeFilter === null ? 'secondary' : 'ghost'} 
-              size="sm" 
-              onClick={() => setActiveFilter(null)} 
-              className="h-8 text-xs px-3"
-            >
-              Todos
-            </Button>
-            {departments?.map(dept => (
-              <Button
-                key={dept.id}
-                variant={activeFilter === dept.id ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setActiveFilter(dept.id)}
-                className="h-8 text-xs gap-1.5 px-3"
-              >
-                <div className={cn('w-2 h-2 rounded-full shrink-0', dept.color)} />
-                <span className="truncate">{dept.name}</span>
-              </Button>
-            ))}
-            <Button
-              variant={activeFilter === BIRTHDAY_TAG.value ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveFilter(BIRTHDAY_TAG.value)}
-              className="h-8 text-xs gap-1.5 px-3"
-            >
-              <div className={cn('w-2 h-2 rounded-full shrink-0', BIRTHDAY_TAG.color)} />
-              <span className="truncate">{BIRTHDAY_TAG.label}</span>
-            </Button>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* CALENDAR VIEW */}
-      {viewMode === 'calendar' && (
-        <Card className="border-none shadow-none bg-transparent">
-          <CardContent className="p-0">
-            {loadingEvents ? (
-              <div className="grid grid-cols-7 gap-px bg-muted border rounded-xl overflow-hidden">
-                {[...Array(42)].map((_, i) => <Skeleton key={i} className="h-24 sm:h-32 w-full rounded-none" />)}
-              </div>
-            ) : (
-              <div className="grid grid-cols-7 gap-px bg-muted border rounded-xl overflow-hidden shadow-sm">
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                  <div key={d} className="bg-muted/50 p-2 sm:p-3 text-center font-bold text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">{d}</div>
-                ))}
-                {days.map((day, i) => {
-                  const { dayEvents, dayBdays } = getItemsForDate(day);
-                  const isToday = isSameDay(day, today);
-                  const isSelectedMonth = isSameMonth(day, currentMonth);
+      {activeTab === 'calendario' ? (
+        <>
+          {/* CONTROLS */}
+          <div className="flex flex-col gap-2 bg-card p-2 sm:p-1">
+            <div className="flex items-center gap-2 w-full">
 
-                  return (
-                    <div
-                      key={i}
-                      className={cn(
-                        'bg-background min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 transition-all hover:bg-accent/30 group relative',
-                        !isSelectedMonth && 'text-muted-foreground/40 bg-muted/5',
-                        isToday && 'bg-primary/5'
-                      )}
-                      onClick={() => isAdmin && openNewDialog(day)}
-                    >
-                      <div className="flex justify-between items-start mb-1 sm:mb-2">
-                        <span className={cn(
-                          'text-xs sm:text-sm font-semibold h-6 w-6 sm:h-7 sm:w-7 flex items-center justify-center rounded-full transition-colors',
-                          isToday ? 'bg-primary text-primary-foreground shadow-sm' : 'group-hover:bg-muted'
-                        )}>
-                          {format(day, 'd')}
+              {/* NAVEGAÇÃO DO MÊS */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={viewMode === 'year' ? previousYear : previousMonth}
+                  className="h-8 w-8 flex items-center justify-center"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="
+                    h-8 px-3
+                    text-xs sm:text-sm font-semibold
+                    min-w-[140px]
+                    capitalize
+                    flex items-center justify-center
+                  "
+                  onClick={() => setViewMode('year')}
+                >
+                  {viewMode === 'year' 
+                    ? getYear(currentMonth)
+                    : format(currentMonth, 'MMMM yyyy', { locale: ptBR })
+                  }
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={viewMode === 'year' ? nextYear : nextMonth}
+                  className="h-8 w-8 flex items-center justify-center"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              {/* DIREITA — FILTRO + TABS */}
+              <div className="ml-auto flex items-center gap-2">
+
+                {/* Filtro de Departamentos */}
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 shrink-0" />
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-8 min-w-[120px] flex items-center justify-between gap-2"
+                      >
+                        <span className="text-sm truncate">
+                          {activeFilter === null
+                            ? 'Todos'
+                            : activeFilter === BIRTHDAY_TAG.value
+                            ? BIRTHDAY_TAG.label
+                            : departments?.find(d => d.id === activeFilter)?.name || 'Filtro'}
                         </span>
-                      </div>
+                        <ChevronRight className="h-3 w-3 rotate-90 shrink-0 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
 
-                      <div className="space-y-0.5 sm:space-y-1">
-                        {dayBdays.slice(0, 1).map((b: any) => (
-                          <div key={b.id} className="text-[9px] sm:text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded px-0.5 sm:px-1 py-0.5 truncate flex items-center gap-0.5 sm:gap-1">
-                            <Cake className="h-2 w-2 sm:h-3 sm:w-3" />
-                            <span className="truncate">{b.name}</span>
-                          </div>
-                        ))}
+                    <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuItem onClick={() => setActiveFilter(null)}>
+                        <span className={activeFilter === null ? 'font-semibold' : ''}>
+                          Todos
+                        </span>
+                      </DropdownMenuItem>
 
-                        {dayEvents.slice(0, 1).map((event: any) => {
-                          const deptId = event.department;
-                          const dept = departments?.find(d => d.id === deptId || d.name === deptId);
-                          return (
-                            <div
-                              key={event.id}
-                              className={cn('text-[9px] sm:text-xs rounded px-0.5 sm:px-1 py-0.5 truncate text-white flex items-center gap-0.5 sm:gap-1', dept?.color || 'bg-gray-500')}
-                              onClick={(e) => { e.stopPropagation(); if (isAdmin) openEditDialog(event); }}
-                            >
-                              {event.is_recurring && <RotateCcw className="h-2 w-2 sm:h-3 sm:w-3 shrink-0 opacity-70" />}
-                              {event.time && <span className="font-semibold hidden sm:inline">{event.time.slice(0, 5)} </span>}
-                              <span className="truncate">{event.title}</span>
-                            </div>
-                          );
-                        })}
+                      {departments?.map(dept => (
+                        <DropdownMenuItem
+                          key={dept.id}
+                          onClick={() => setActiveFilter(dept.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <div className={cn('w-3 h-3 rounded-full', dept.color)} />
+                          <span className={activeFilter === dept.id ? 'font-semibold' : ''}>
+                            {dept.name}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
 
-                        {(dayEvents.length + dayBdays.length) > 2 && (
-                          <div className="text-[8px] sm:text-xs text-muted-foreground">+{dayEvents.length + dayBdays.length - 2}</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                      <DropdownMenuItem onClick={() => setActiveFilter(BIRTHDAY_TAG.value)}>
+                        <div className="flex items-center gap-2">
+                          <div className={cn('w-3 h-3 rounded-full', BIRTHDAY_TAG.color)} />
+                          <span className={activeFilter === BIRTHDAY_TAG.value ? 'font-semibold' : ''}>
+                            {BIRTHDAY_TAG.label}
+                          </span>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-      {/* YEAR VIEW */}
-      {viewMode === 'year' && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {MONTHS_PT.map((label, monthIndex) => {
-            const monthDate  = setMonth(setYear(new Date(), getYear(currentMonth)), monthIndex);
-            const mStart     = startOfMonth(monthDate);
-            const mEnd       = endOfMonth(monthDate);
-            const mDays      = eachDayOfInterval({ start: mStart, end: mEnd });
-            const mStartDow  = getDay(mStart);
-            const isCurrentM = isSameMonth(monthDate, today) && getYear(currentMonth) === getYear(today);
+                {/* Tabs */}
+                {activeTab === 'calendario' && (
+                  <Tabs
+                    value={viewMode}
+                    onValueChange={(v: any) => setViewMode(v)}
+                    className="w-auto"
+                  >
+                    <TabsList className="h-8 flex items-center">
+                      <TabsTrigger
+                        value="calendar"
+                        className="
+                          h-8 px-3 text-xs
+                          flex items-center justify-center gap-1
+                          data-[state=active]:h-7
+                        "
+                      >
+                        <CalendarIcon className="h-3 w-3" />
+                        <span className="hidden sm:inline">Mês</span>
+                      </TabsTrigger>
 
-            const miniPrev: Date[] = [];
-            for (let i = mStartDow - 1; i >= 0; i--) {
-              const d = new Date(mStart);
-              d.setDate(d.getDate() - (i + 1));
-              miniPrev.push(d);
-            }
-            const miniGrid = [...miniPrev, ...mDays];
+                      <TabsTrigger
+                        value="list"
+                        className="
+                          h-8 px-3 text-xs
+                          flex items-center justify-center gap-1
+                          data-[state=active]:h-7
+                        "
+                      >
+                        <List className="h-3 w-3" />
+                        <span className="hidden sm:inline">Lista</span>
+                      </TabsTrigger>
 
-            return (
-              <Card
-                key={monthIndex}
-                className={cn(
-                  'cursor-pointer hover:shadow-md transition-shadow',
-                  isCurrentM && 'ring-2 ring-primary',
+                      <TabsTrigger
+                        value="year"
+                        className="
+                          h-8 px-3 text-xs
+                          flex items-center justify-center gap-1
+                          data-[state=active]:h-7
+                        "
+                      >
+                        <Church className="h-3 w-3" />
+                        <span className="hidden sm:inline">Ano</span>
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                 )}
-                onClick={() => {
-                  setCurrentMonth(monthDate);
-                  setViewMode('calendar');
-                }}
-              >
-                <CardHeader className="py-2 px-3">
-                  <CardTitle className={cn('text-sm text-center font-semibold capitalize', isCurrentM && 'text-primary')}>
-                    {label}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-2 pb-2">
-                  <div className="grid grid-cols-7 gap-0.5">
-                    {['D','S','T','Q','Q','S','S'].map((h, i) => (
-                      <div key={i} className="text-center text-[9px] font-semibold text-muted-foreground">{h}</div>
-                    ))}
+              </div>
+            </div>
+          </div>
 
-                    {miniGrid.map((day, i) => {
-                      const isThisMonth = isSameMonth(day, monthDate);
-                      const isDayToday  = isSameDay(day, today);
-                      const circleBg    = isThisMonth ? getCircleBgForDate(day) : null;
+          {/* CALENDAR VIEW */}
+          {viewMode === 'calendar' && (
+            <Card className="border-none shadow-none bg-transparent">
+              <CardContent className="p-0">
+                {loadingEvents ? (
+                  <div className="grid grid-cols-7 gap-px bg-muted border rounded-xl overflow-hidden">
+                    {[...Array(42)].map((_, i) => <Skeleton key={i} className="h-24 sm:h-32 w-full rounded-none" />)}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-7 gap-px bg-muted border rounded-xl overflow-hidden shadow-sm">
+                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+                      <div key={d} className="bg-muted/50 p-2 sm:p-3 text-center font-bold text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">{d}</div>
+                    ))}
+                    {days.map((day, i) => {
+                      const { dayEvents, dayBdays } = getItemsForDate(day);
+                      const isToday = isSameDay(day, today);
+                      const isSelectedMonth = isSameMonth(day, currentMonth);
 
                       return (
                         <div
                           key={i}
                           className={cn(
-                            'h-5 flex items-center justify-center text-[10px] rounded-full',
-                            !isThisMonth && 'opacity-30',
-                            circleBg && circleBg,
-                            circleBg && 'text-white font-semibold',
-                            isDayToday && !circleBg && 'ring-2 ring-primary text-primary font-bold',
-                            isDayToday && circleBg && 'ring-2 ring-white',
+                            'bg-background min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 transition-all hover:bg-accent/30 group relative',
+                            !isSelectedMonth && 'text-muted-foreground/40 bg-muted/5',
+                            isToday && 'bg-primary/5'
                           )}
+                          onClick={() => isAdmin && openNewDialog(day)}
                         >
-                          {format(day, 'd')}
+                          <div className="flex justify-between items-start mb-1 sm:mb-2">
+                            <span className={cn(
+                              'text-xs sm:text-sm font-semibold h-6 w-6 sm:h-7 sm:w-7 flex items-center justify-center rounded-full transition-colors',
+                              isToday ? 'bg-primary text-primary-foreground shadow-sm' : 'group-hover:bg-muted'
+                            )}>
+                              {format(day, 'd')}
+                            </span>
+                          </div>
+
+                          <div className="space-y-0.5 sm:space-y-1">
+                            {dayBdays.slice(0, 1).map((b: any) => (
+                              <div key={b.id} className="text-[9px] sm:text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded px-0.5 sm:px-1 py-0.5 truncate flex items-center gap-0.5 sm:gap-1">
+                                <Cake className="h-2 w-2 sm:h-3 sm:w-3" />
+                                <span className="truncate">{b.name}</span>
+                              </div>
+                            ))}
+
+                            {dayEvents.slice(0, dayBdays.length > 0 ? 2 : 3).map((event: any) => {
+                              const deptId = event.department;
+                              const dept = departments?.find(d => d.id === deptId || d.name === deptId);
+                              return (
+                                <div
+                                  key={event.id}
+                                  className={cn('text-[9px] sm:text-xs rounded px-0.5 sm:px-1 py-0.5 truncate text-white flex items-center gap-0.5 sm:gap-1', dept?.color || 'bg-gray-500')}
+                                  onClick={(e) => { e.stopPropagation(); if (isAdmin) openEditDialog(event); }}
+                                >
+                                  {event.is_recurring && <RotateCcw className="h-2 w-2 sm:h-3 sm:w-3 shrink-0 opacity-70" />}
+                                  {event.time && <span className="font-semibold hidden sm:inline">{event.time.slice(0, 5)} </span>}
+                                  <span className="truncate">{event.title}</span>
+                                </div>
+                              );
+                            })}
+
+                            {(dayEvents.length + dayBdays.length) > 3 && (
+                              <div className="text-[8px] sm:text-xs text-muted-foreground font-semibold">
+                                +{dayEvents.length + dayBdays.length - 3} eventos
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* LIST VIEW */}
-      {viewMode === 'list' && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Church className="h-5 w-5" />
-                Eventos do Mês
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          {/* YEAR VIEW */}
+          {viewMode === 'year' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {MONTHS_PT.map((label, monthIndex) => {
+                const monthDate  = setMonth(setYear(new Date(), getYear(currentMonth)), monthIndex);
+                const mStart     = startOfMonth(monthDate);
+                const mEnd       = endOfMonth(monthDate);
+                const mDays      = eachDayOfInterval({ start: mStart, end: mEnd });
+                const mStartDow  = getDay(mStart);
+                const isCurrentM = isSameMonth(monthDate, today) && getYear(currentMonth) === getYear(today);
+
+                const miniPrev: Date[] = [];
+                for (let i = mStartDow - 1; i >= 0; i--) {
+                  const d = new Date(mStart);
+                  d.setDate(d.getDate() - (i + 1));
+                  miniPrev.push(d);
+                }
+                const miniGrid = [...miniPrev, ...mDays];
+
+                return (
+                  <Card
+                    key={monthIndex}
+                    className={cn(
+                      'cursor-pointer hover:shadow-md transition-shadow',
+                      isCurrentM && 'ring-2 ring-primary',
+                    )}
+                    onClick={() => {
+                      setCurrentMonth(monthDate);
+                      setViewMode('calendar');
+                    }}
+                  >
+                    <CardHeader className="py-2 px-3">
+                      <CardTitle className={cn('text-sm text-center font-semibold capitalize', isCurrentM && 'text-primary')}>
+                        {label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-2 pb-2">
+                      <div className="grid grid-cols-7 gap-0.5">
+                        {['D','S','T','Q','Q','S','S'].map((h, i) => (
+                          <div key={i} className="text-center text-[9px] font-semibold text-muted-foreground">{h}</div>
+                        ))}
+
+                        {miniGrid.map((day, i) => {
+                          const isThisMonth = isSameMonth(day, monthDate);
+                          const isDayToday  = isSameDay(day, today);
+                          const circleBg    = isThisMonth ? getCircleBgForDate(day) : null;
+
+                          return (
+                            <div
+                              key={i}
+                              className={cn(
+                                'h-5 flex items-center justify-center text-[10px] rounded-full',
+                                !isThisMonth && 'opacity-30',
+                                circleBg && circleBg,
+                                circleBg && 'text-white font-semibold',
+                                isDayToday && !circleBg && 'ring-2 ring-primary text-primary font-bold',
+                                isDayToday && circleBg && 'ring-2 ring-white',
+                              )}
+                            >
+                              {format(day, 'd')}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          {/* LIST VIEW */}
+          {viewMode === 'list' && (
+            <div className="space-y-4">
+
+              {/* ===== EVENTOS DO MÊS (AGRUPADOS POR DIA) ===== */}
               {loadingEvents ? (
-                <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
               ) : allMonthEvents.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">Nenhum evento neste mês</p>
+                <p className="text-center py-10 text-muted-foreground">
+                  Nenhum evento neste mês
+                </p>
               ) : (
-                <div className="space-y-2">
-                  {allMonthEvents.map((event: any) => {
-                    const deptId = event.department;
-                    const dept = departments?.find(d => d.id === deptId || d.name === deptId);
-                    return (
-                      <div key={event.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className={cn('text-white', dept?.color || 'bg-gray-500')}>{dept?.name || 'Geral'}</Badge>
-                            {event.is_recurring && (
-                              <Badge variant="outline" className="text-xs gap-1">
-                                <RotateCcw className="h-3 w-3" />
-                                Semanal
-                                {event.recurrence_year && <><Lock className="h-3 w-3" />{event.recurrence_year}</>}
-                              </Badge>
-                            )}
-                            <h3 className="font-semibold">{event.title}</h3>
-                          </div>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {format(parseISO(event.date), "dd/MM/yyyy', ' EEEE", { locale: ptBR })}
-                            {event.time && ` às ${event.time.slice(0, 5)}`}
-                          </div>
-                          {event.description && <p className="text-sm text-muted-foreground mt-1">{event.description}</p>}
+                Object.entries(
+                  allMonthEvents.reduce((acc: any, event: any) => {
+                    if (!event.date) return acc;
+                    try {
+                      const key = format(parseISO(event.date), 'yyyy-MM-dd')
+                      if (!acc[key]) acc[key] = []
+                      acc[key].push(event)
+                    } catch (e) {
+                      console.error("Erro ao processar data do evento:", event);
+                    }
+                    return acc
+                  }, {})
+                ).map(([day, events]: any) => {
+                  let date;
+                  try {
+                    date = parseISO(day);
+                  } catch (e) {
+                    return null;
+                  }
+
+                  // LÓGICA PARA VERIFICAR SE O DIA INTEIRO JÁ PASSOU
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  
+                  const eventDateOnly = new Date(date);
+                  eventDateOnly.setHours(0, 0, 0, 0);
+
+                  const isPastDay = isBefore(eventDateOnly, today);
+
+                  return (
+                    <div 
+                      key={day} 
+                      className={cn(
+                        "space-y-2 transition-all duration-300",
+                        isPastDay && "opacity-50 grayscale-[0.5]"
+                      )}
+                    >
+
+                      {/* CABEÇALHO DO DIA */}
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-sm transition-colors",
+                          isPastDay ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
+                        )}>
+                          {format(date, 'dd')}
                         </div>
-                        {isAdmin && (
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(event)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(event.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                          </div>
-                        )}
+
+                        <div>
+                          <p className="font-semibold capitalize">
+                            {format(date, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                          </p>
+                          <p className="text-sm text-muted-foreground leading-none">
+                            {events.length} evento{events.length > 1 && 's'}
+                          </p>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      {/* EVENTOS DO DIA */}
+                      <div className="space-y-2 pl-11">
+                        {events.map((event: any) => {
+                          const dept = departments?.find(
+                            d => d.id === event.department || d.name === event.department
+                          )
+
+                          let isPastEvent = isPastDay;
+                          if (!isPastDay && isSameDay(eventDateOnly, today) && event.time) {
+                            const now = new Date();
+                            const [hours, minutes] = event.time.split(':').map(Number);
+                            const eventTime = new Date();
+                            eventTime.setHours(hours, minutes, 0, 0);
+                            isPastEvent = isBefore(eventTime, now);
+                          }
+
+                          return (
+                            <div
+                              key={event.id}
+                              className={cn(
+                                "relative rounded-xl border bg-background p-3",
+                                !isPastDay && isPastEvent && "opacity-60"
+                              )}
+                            >
+                              {/* BARRA LATERAL */}
+                              <div
+                                className={cn(
+                                  'absolute left-0 top-3 h-10 w-1 rounded-full',
+                                  dept?.color || 'bg-gray-400'
+                                )}
+                              />
+
+                              {/* TÍTULO */}
+                              <h3 className="font-semibold flex items-center gap-2">
+                                {event.title}
+                                {isPastEvent && (
+                                  <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground uppercase font-bold">
+                                    Encerrado
+                                  </span>
+                                )}
+                              </h3>
+
+                              {/* DESCRIÇÃO */}
+                              {event.description && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {event.description}
+                                </p>
+                              )}
+
+                              {/* META */}
+                              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-2">
+                                {event.time && <span>{event.time.slice(0, 5)}</span>}
+                                {event.location && <span>{event.location}</span>}
+                                {event.is_recurring && <span>Semanal</span>}
+                              </div>
+
+                              {/* BADGE */}
+                              <Badge variant="outline" className="mt-2">
+                                {dept?.name || 'Geral'}
+                              </Badge>
+
+                              {/* AÇÕES ADMIN */}
+                              {isAdmin && (
+                                <div className="absolute top-2 right-2 flex gap-1">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(event)}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteMutation.mutate(event.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })
               )}
+            </div>
+          )}
+
+        </>
+      ) : (
+        /* ABA ESCALA DE SERVIÇO */
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="text-center">
+            <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
+              <Church className="h-6 w-6" />
+              Escala de Serviço
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Organização e distribuição das responsabilidades</p>
+          </div>
+
+          {/* Cards de Estatísticas */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Total de Escalas no Mês */}
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Escalas no Mês</CardTitle>
+                <CalendarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">8</div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">4 Cultos • 4 Limpezas</p>
+              </CardContent>
+            </Card>
+
+            {/* Limpeza */}
+            <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Limpeza</CardTitle>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600 dark:text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 12h4"/><path d="M4 6v14c0 1 1 2 2 2h12c1 0 2-1 2-2V6"/>
+                </svg>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-700 dark:text-green-300">12</div>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Pessoas escaladas</p>
+              </CardContent>
+            </Card>
+
+            {/* Intercessão */}
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">Intercessão</CardTitle>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600 dark:text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                </svg>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">14</div>
+                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Pessoas escaladas</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Próximo Evento - Destaque */}
+          <Card className="border-2 border-primary/30 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  Próximo Culto
+                </CardTitle>
+                <Badge variant="default" className="bg-primary">Domingo, 08/fev</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid md:grid-cols-3 gap-6">
+                {/* Portaria */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>
+                    </svg>
+                    Portaria
+                  </div>
+                  <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3">
+                    <p className="font-medium text-blue-900 dark:text-blue-100">Diac. Saulo</p>
+                  </div>
+                </div>
+
+                {/* Intercessão */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                    </svg>
+                    Intercessão
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-950/30 rounded-lg p-3 space-y-1">
+                    <p className="font-medium text-purple-900 dark:text-purple-100">Diac. Aline</p>
+                    <p className="font-medium text-purple-900 dark:text-purple-100">Diac. Ana Angélica</p>
+                  </div>
+                </div>
+
+                {/* Dirigente */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    <Church className="h-4 w-4" />
+                    Dirigente
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3">
+                    <p className="font-medium text-green-900 dark:text-green-100">Pr Felipe</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
+          {/* Escala do Mês - Timeline */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <RotateCcw className="h-5 w-5 text-blue-500" />
-                Eventos Recorrentes
+                <List className="h-5 w-5" />
+                Escala Completa de Fevereiro
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {loadingRecurring ? (
-                <div className="space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-              ) : !recurringEvents || recurringEvents.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">Nenhum evento recorrente cadastrado</p>
-              ) : (
-                <div className="space-y-2">
-                  {recurringEvents.map((event: any) => {
-                    const deptId = event.department;
-                    const dept = departments?.find(d => d.id === deptId || d.name === deptId);
-                    const dayName = DAYS_OF_WEEK.find(d => d.value === String(event.recurrence_day))?.label;
-                    return (
-                      <div key={event.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className={cn('text-white', dept?.color || 'bg-gray-500')}>{dept?.name || 'Geral'}</Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {dayName} {event.time ? `às ${event.time.slice(0,5)}` : ''}
-                            </Badge>
-                            {event.recurrence_year && (
-                              <Badge variant="outline" className="text-xs gap-1">
-                                <Lock className="h-3 w-3" />
-                                Ano {event.recurrence_year}
-                              </Badge>
-                            )}
-                            <h3 className="font-semibold">{event.title}</h3>
-                          </div>
-                          {event.description && <p className="text-sm text-muted-foreground mt-1">{event.description}</p>}
-                        </div>
-                        {isAdmin && (
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(event)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(event.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                          </div>
-                        )}
+              <div className="space-y-4">
+                {/* Domingo 01/fev */}
+                <div className="relative pl-8 pb-8 border-l-2 border-muted">
+                  <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-red-500 border-4 border-background" />
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Domingo</Badge>
+                      <span className="font-semibold">01/fev - Culto</span>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <p className="text-xs text-muted-foreground mb-1">Portaria</p>
+                        <p className="text-sm font-medium">Diac. Walmir</p>
                       </div>
-                    );
-                  })}
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <p className="text-xs text-muted-foreground mb-1">Intercessão</p>
+                        <p className="text-sm font-medium">Diac. Rafael, Diac Hendy</p>
+                      </div>
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <p className="text-xs text-muted-foreground mb-1">Dirigente</p>
+                        <p className="text-sm font-medium">Pr Glauco</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Cake className="h-5 w-5 text-pink-500" />
-                Aniversariantes do Mês
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingBirthdays ? (
-                <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-              ) : allMonthBirthdays.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">Nenhum aniversariante neste mês</p>
-              ) : (
-                <div className="space-y-2">
-                  {allMonthBirthdays
-                    .sort((a: any, b: any) =>
-                      parseInt(format(parseISO(a.birth_date), 'dd')) - parseInt(format(parseISO(b.birth_date), 'dd'))
-                    )
-                    .map((bday: any) => (
-                      <div key={bday.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-pink-100 dark:bg-pink-900/30 p-2 rounded-full">
-                            <Cake className="h-5 w-5 text-pink-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold">{bday.name}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {format(parseISO(bday.birth_date), "dd 'de' MMMM", { locale: ptBR })}
-                            </p>
-                          </div>
-                        </div>
+                {/* Terça 03/fev */}
+                <div className="relative pl-8 pb-8 border-l-2 border-muted">
+                  <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-blue-500 border-4 border-background" />
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Terça-feira</Badge>
+                      <span className="font-semibold">03/fev - Culto</span>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <p className="text-xs text-muted-foreground mb-1">Portaria</p>
+                        <p className="text-sm font-medium">Diácono Rafael</p>
                       </div>
-                    ))}
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <p className="text-xs text-muted-foreground mb-1">Intercessão</p>
+                        <p className="text-sm font-medium">Mayara, Diac. Aline</p>
+                      </div>
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <p className="text-xs text-muted-foreground mb-1">Dirigente</p>
+                        <p className="text-sm font-medium">Diac Suzana</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {/* Sábado 07/fev - Limpeza */}
+                <div className="relative pl-8 pb-8 border-l-2 border-muted">
+                  <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-green-500 border-4 border-background" />
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Sábado</Badge>
+                      <span className="font-semibold">07/fev - Limpeza</span>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-950/30 rounded-md p-3">
+                      <p className="text-xs text-muted-foreground mb-1">Responsáveis</p>
+                      <p className="text-sm font-medium">Aline, Rafael, Ana Angelica</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Domingo 08/fev - ATIVO/PRÓXIMO */}
+                <div className="relative pl-8 pb-8 border-l-2 border-primary">
+                  <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-primary border-4 border-background shadow-lg shadow-primary/50" />
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-primary">Domingo</Badge>
+                      <span className="font-semibold">08/fev - Culto</span>
+                      <Badge variant="outline" className="ml-auto">Próximo</Badge>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div className="bg-primary/10 rounded-md p-2 border border-primary/20">
+                        <p className="text-xs text-muted-foreground mb-1">Portaria</p>
+                        <p className="text-sm font-medium">Diac. Saulo</p>
+                      </div>
+                      <div className="bg-primary/10 rounded-md p-2 border border-primary/20">
+                        <p className="text-xs text-muted-foreground mb-1">Intercessão</p>
+                        <p className="text-sm font-medium">Diac. Aline, Diac. Ana Angélica</p>
+                      </div>
+                      <div className="bg-primary/10 rounded-md p-2 border border-primary/20">
+                        <p className="text-xs text-muted-foreground mb-1">Dirigente</p>
+                        <p className="text-sm font-medium">Pr Felipe</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Indicador de mais eventos */}
+                <div className="relative pl-8">
+                  <div className="absolute -left-[9px] top-2 h-4 w-4 rounded-full bg-muted border-4 border-background" />
+                  <p className="text-sm text-muted-foreground italic">+ eventos restantes no mês...</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -800,9 +1080,10 @@ export default function Calendario() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Titulo do Evento */}
             <div className="space-y-2">
-              <Label>Título *</Label>
+              <Label>Titulo do Evento *</Label>
               <Input
                 placeholder="Nome do evento"
                 value={formData.title}
@@ -811,108 +1092,9 @@ export default function Calendario() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Data *</Label>
-                <Input
-                  type="date"
-                  value={formData.date}
-                  onChange={e => setFormData({ ...formData, date: e.target.value })}
-                  required
-                  disabled={formData.is_recurring}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Horário</Label>
-                <Input
-                  type="time"
-                  value={formData.time}
-                  onChange={e => setFormData({ ...formData, time: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border rounded-lg px-3 py-2.5 bg-muted/40">
-              <div className="flex items-center gap-2">
-                <RotateCcw className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Recorrência semanal</span>
-              </div>
-              <Switch
-                checked={formData.is_recurring}
-                onCheckedChange={checked => {
-                  const dow = checked ? String(getDay(parseISO(formData.date))) : formData.recurrence_day;
-                  setFormData({ ...formData, is_recurring: checked, recurrence_day: dow, recurrence_year: null });
-                }}
-              />
-            </div>
-
-            {formData.is_recurring && (
-              <div className="space-y-3 border rounded-lg p-3 bg-muted/20">
-                <div className="space-y-2">
-                  <Label className="text-sm">Dia da semana *</Label>
-                  <Select value={formData.recurrence_day} onValueChange={v => setFormData({ ...formData, recurrence_day: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DAYS_OF_WEEK.map(d => (
-                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Travar em um ano</span>
-                  </div>
-                  <Switch
-                    checked={formData.recurrence_year !== null}
-                    onCheckedChange={checked =>
-                      setFormData({ ...formData, recurrence_year: checked ? getYear(new Date()) : null })
-                    }
-                  />
-                </div>
-
-                {formData.recurrence_year !== null && (
-                  <div className="space-y-2">
-                    <Label className="text-sm">Ano</Label>
-                    <Select
-                      value={String(formData.recurrence_year)}
-                      onValueChange={v => setFormData({ ...formData, recurrence_year: Number(v) })}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 8 }, (_, i) => getYear(new Date()) - 2 + i).map(year => (
-                          <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            )}
-
+            {/* Descricao */}
             <div className="space-y-2">
-              <Label>Departamento</Label>
-              <Select value={formData.department} onValueChange={v => setFormData({ ...formData, department: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments?.map(dept => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      <div className="flex items-center gap-2">
-                        <div className={cn('w-3 h-3 rounded-full', dept.color)} />
-                        {dept.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Descrição</Label>
+              <Label>Descricao</Label>
               <Textarea
                 placeholder="Detalhes do evento"
                 value={formData.description}
@@ -921,6 +1103,122 @@ export default function Calendario() {
               />
             </div>
 
+            {/*Data, Inicio e Termino */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+              <Label>Data *</Label>
+              <Input
+                type="date"
+                value={formData.date}
+                onChange={e => setFormData({ ...formData, date: e.target.value })}
+                required
+                disabled={formData.is_recurring}
+              />
+            </div>
+              <div className="space-y-2">
+                <Label>Inicio</Label>
+                <Input
+                  type="time"
+                  value={formData.time}
+                  onChange={e => setFormData({ ...formData, time: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Termino</Label>
+                <Input
+                  type="time"
+                  value={formData.end_time}
+                  onChange={e => setFormData({ ...formData, end_time: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Departamento e Local */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Departamento</Label>
+                  <Select value={formData.department} onValueChange={v => setFormData({ ...formData, department: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o departamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments?.map(dept => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          <div className="flex items-center gap-2">
+                            <div className={cn('w-3 h-3 rounded-full', dept.color)} />
+                            {dept.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                <Label>Local</Label>
+                <Input
+                  placeholder="Local do evento"
+                  value={formData.location}
+                  onChange={e => setFormData({ ...formData, location: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Recorrencia */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Recorrência</Label>
+                <Select 
+                  value={formData.recurrence_type || (formData.is_recurring ? 'weekly' : 'none')} 
+                  onValueChange={v => {
+                    const isRecurring = v !== 'none';
+                    
+                    const detectedDayOfWeek = isRecurring && formData.date 
+                      ? String(getDay(parseISO(formData.date))) 
+                      : null;
+
+                    setFormData({ 
+                      ...formData, 
+                      is_recurring: isRecurring, 
+                      recurrence_type: v,
+                      recurrence_day: detectedDayOfWeek,
+                      recurrence_year: isRecurring ? (formData.recurrence_year || getYear(new Date())) : null 
+                    });
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-muted/40">
+                    <div className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                      <SelectValue placeholder="Selecione a recorrência" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Não Repete</SelectItem>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="biweekly">Quinzenal</SelectItem>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.is_recurring && (
+                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">Repetir apenas em {formData.recurrence_year || getYear(new Date())}</span>
+                      <span className="text-xs text-muted-foreground">O evento não aparecerá em anos futuros</span>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={formData.recurrence_year !== null}
+                    onCheckedChange={checked =>
+                      setFormData({ ...formData, recurrence_year: checked ? getYear(new Date()) : null })
+                    }
+                  />
+                </div>
+              )}
+            </div>
+        
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeDialog}>Cancelar</Button>
               <Button type="submit" disabled={saveMutation.isPending}>
@@ -929,9 +1227,9 @@ export default function Calendario() {
                 ) : 'Salvar'}
               </Button>
             </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+        </form>
+      </DialogContent>
+    </Dialog>
+  </div>
+);
 }
